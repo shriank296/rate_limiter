@@ -6,7 +6,7 @@ services:
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: limit_rate
+      POSTGRES_DB: rate_limiter
     ports:
       - "5432:5432"
     volumes:
