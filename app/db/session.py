@@ -6,6 +6,8 @@ from typing import Any
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
+from app.config import settings
+
 # ---------------------------------------------------------------------------
 # Engine creation (runs ONCE at import time)
 #
@@ -16,7 +18,7 @@ from sqlalchemy.orm import Session, sessionmaker
 # This engine is reused by all sessions created through SessionLocal.
 # It is NOT recreated per request or per dependency call.
 # ---------------------------------------------------------------------------
-engine = create_engine("postgresql+psycopg2://scott:tiger@localhost/")
+engine = create_engine(settings.DATABASE_URL)
 
 logger = logging.getLogger(__name__)
 
