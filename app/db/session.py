@@ -3,10 +3,9 @@ from collections.abc import Generator
 from contextlib import contextmanager
 from typing import Any
 
-from sqlalchemy import create_engine
+from sqlalchemy import Engine, create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
-from app.config import settings
 
 # ---------------------------------------------------------------------------
 # Engine creation (runs ONCE at import time)
@@ -18,9 +17,13 @@ from app.config import settings
 # This engine is reused by all sessions created through SessionLocal.
 # It is NOT recreated per request or per dependency call.
 # ---------------------------------------------------------------------------
-engine = create_engine(settings.DATABASE_URL)
+def get_engine(db_url: str) -> Engine:
+    engine: Engine = create_engine(db_url)
+    return engine
+
 
 logger = logging.getLogger(__name__)
+
 
 # ---------------------------------------------------------------------------
 # sessionmaker factory (runs ONCE at import time)
@@ -32,12 +35,14 @@ logger = logging.getLogger(__name__)
 # The Session will borrow a DB connection from the engine's pool only
 # when the first query is executed (lazy connection checkout).
 # ---------------------------------------------------------------------------
-SessionLocal = sessionmaker(
-    bind=engine,
-    autoflush=True,
-    autocommit=False,
-    expire_on_commit=False,  # common for FastAPI, avoids automatic re-fetch after commit
-)
+def get_session_factory(engine: Engine) -> sessionmaker[Session]:
+    SessionLocal: sessionmaker[Session] = sessionmaker(
+        bind=engine,
+        autoflush=True,
+        autocommit=False,
+        expire_on_commit=False,  # common for FastAPI, avoids automatic re-fetch after commit
+    )
+    return SessionLocal
 
 
 # ---------------------------------------------------------------------------
@@ -61,7 +66,7 @@ SessionLocal = sessionmaker(
 # section, which closes the session, returning the DB connection to the pool.
 # ---------------------------------------------------------------------------
 @contextmanager
-def get_session() -> Generator[Session, Any]:
+def get_session(SessionLocal: callable) -> Generator[Session, Any]:
     # Create a new Session object (cheap). Engine/sessionmaker are NOT recreated.
     session = SessionLocal()
     try:
