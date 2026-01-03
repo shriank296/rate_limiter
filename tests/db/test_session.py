@@ -1,74 +1,91 @@
 from unittest.mock import MagicMock, patch
 
-import pytest
 from sqlalchemy import Select
-from sqlalchemy.orm import Session, sessionmaker
 
-from app.db.models import Base, User
-from app.db.session import get_engine, get_session, get_session_factory
-
-SQLITE_URL = "sqlite:///:memory:"
+from app.db.models import User
+from app.db.session import get_session
+from tests.conftest import UserFactory
 
 
-@pytest.mark.skip("logic changed, will fix soon")
-def test_get_session() -> None:
+def test_get_session_happy_path() -> None:
+    """
+    get_session should:
+    - create a Session from SessionLocal
+    - start a transaction via session.begin()
+    - yield the session
+    - close the session when the generator is closed
+    """
     mock_session = MagicMock()
+
     with patch("app.db.session.SessionLocal", return_value=mock_session):
-        with get_session(mock_session):
-            pass
+        gen = get_session()
 
-    mock_session.begin.assert_called_once()
-    mock_session.close.assert_called_once()
+        # Act: enter the generator
+        session = next(gen)
+
+        # Assert: yielded session is the one created
+        assert session is mock_session
+
+        # Act: close generator (simulates request completion)
+        gen.close()
+
+        # Assert: transaction + cleanup happened
+        mock_session.begin.assert_called_once()
+        mock_session.close.assert_called_once()
 
 
-@pytest.mark.skip("logic changed, will fix soon")
-def test_get_session_rollback_on_exception() -> None:
+def test_get_session_exception_path() -> None:
+    """
+    If an exception is thrown into the generator:
+    - it should propagate
+    - the session must still be closed
+    """
     mock_session = MagicMock()
+
     with patch("app.db.session.SessionLocal", return_value=mock_session):
+        gen = get_session()
+        next(gen)  # enter generator
+
         try:
-            with get_session(mock_session):
-                raise TypeError
-        except TypeError:
+            gen.throw(ValueError("boom"))
+        except ValueError:
             pass
-    mock_session.begin.assert_called_once()
-    mock_session.close.assert_called_once()
+
+        mock_session.close.assert_called_once()
 
 
-@pytest.fixture(scope="session")
-def engine():
-    return get_engine(SQLITE_URL)
-
-
-@pytest.fixture(scope="session")
-def session_maker(engine) -> sessionmaker[Session]:
-    return get_session_factory(engine)
-
-
-@pytest.fixture(scope="session")
-def create_db(engine):
-    Base.metadata.drop_all(bind=engine)
-    Base.metadata.create_all(bind=engine)
-
-
-def test_user_creation(engine, create_db, session_maker):
+def test_user_creation(engine, create_db, get_session_test) -> None:
     """
-    Docstring for test_user_creation
+    Verify that a User can be:
+    - persisted using the test session
+    - queried back correctly
 
-    :param engine: Description
-    :type engine: Engine
-    :param create_db: Description
-    :type create_db: None
-    :param session_maker: Description
-    :type session_maker: sessionmaker[Session]
-    Rows are tuples.
-    scalars() removes the tuple and keeps the first item.
+    Notes:
+    - SQLAlchemy Core Select returns Row objects
+    - scalar_one() extracts the single selected column value
     """
-    user: User = User(name="test_name", username="test_username")
+    user = User(name="test_name", username="test_username")
     user.password = "secret123"
-    with get_session(session_maker) as test_session:
-        test_session.add(user)
-        stmt = Select(User.username).where(User.name == "test_name")
-        result = test_session.execute(stmt).scalar_one()
-        # assert result.name == "test_name"
-        # assert result.username == "test_username"
-        assert result == "test_username"
+
+    get_session_test.add(user)
+
+    stmt = Select(User.username).where(User.name == "test_name")
+    result = get_session_test.execute(stmt).scalar_one()
+
+    assert result == "test_username"
+
+
+def test_user_creation_using_factory(engine, create_db, get_session_test) -> None:
+    """
+    Verify UserFactory creates a persisted User
+    and the stored data matches the factory output.
+    """
+    user = UserFactory.create(password="secret")
+
+    stmt = Select(User).where(User.id == user.id)
+    result = get_session_test.execute(stmt).one()
+
+    # `.one()` returns a Row; iterate to access mapped entities
+    for obj in result:
+        assert obj.name == user.name
+        assert obj.username == user.username

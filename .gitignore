@@ -9,3 +9,8 @@ wheels/
 # Virtual environments
 .venv
 .env
+# SQLite test database
+test.db
+test.db-journal
+test.db-wal
+test.db-shm

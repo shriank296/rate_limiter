@@ -1,11 +1,11 @@
 import logging
 from collections.abc import Generator
-from contextlib import contextmanager
 from typing import Any
 
-from sqlalchemy import Engine, create_engine
+from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
+from app.config import settings
 
 # ---------------------------------------------------------------------------
 # Engine creation (runs ONCE at import time)
@@ -17,10 +17,13 @@ from sqlalchemy.orm import Session, sessionmaker
 # This engine is reused by all sessions created through SessionLocal.
 # It is NOT recreated per request or per dependency call.
 # ---------------------------------------------------------------------------
-def get_engine(db_url: str) -> Engine:
-    engine: Engine = create_engine(db_url)
-    return engine
-
+# def get_engine(db_url: str) -> Engine:
+#     engine: Engine = create_engine(db_url)
+#     return engine
+engine = create_engine(
+    settings.DATABASE_URL,
+    pool_pre_ping=True,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -35,14 +38,13 @@ logger = logging.getLogger(__name__)
 # The Session will borrow a DB connection from the engine's pool only
 # when the first query is executed (lazy connection checkout).
 # ---------------------------------------------------------------------------
-def get_session_factory(engine: Engine) -> sessionmaker[Session]:
-    SessionLocal: sessionmaker[Session] = sessionmaker(
-        bind=engine,
-        autoflush=True,
-        autocommit=False,
-        expire_on_commit=False,  # common for FastAPI, avoids automatic re-fetch after commit
-    )
-    return SessionLocal
+
+SessionLocal: sessionmaker[Session] = sessionmaker(
+    bind=engine,
+    autoflush=True,
+    autocommit=False,
+    expire_on_commit=False,  # common for FastAPI, avoids automatic re-fetch after commit
+)
 
 
 # ---------------------------------------------------------------------------
@@ -65,10 +67,11 @@ def get_session_factory(engine: Engine) -> sessionmaker[Session]:
 # After the generator resumes post-yield, FastAPI triggers the teardown
 # section, which closes the session, returning the DB connection to the pool.
 # ---------------------------------------------------------------------------
-@contextmanager
-def get_session(SessionLocal: callable) -> Generator[Session, Any]:
+# @contextmanager
+def session_scope(session_factory: sessionmaker) -> Generator[Session, Any]:
     # Create a new Session object (cheap). Engine/sessionmaker are NOT recreated.
-    session = SessionLocal()
+    # session_factory = get_session_factory(get_engine(settings.DATABASE_URL))
+    session = session_factory()
     try:
         # Begin a transaction:
         #   - commit on normal exit
@@ -86,3 +89,7 @@ def get_session(SessionLocal: callable) -> Generator[Session, Any]:
         #   - Releases the DB connection back to the engine's pool
         #   - Avoids connection leaks
         session.close()
+
+
+def get_session() -> Generator[Session, None]:
+    yield from session_scope(SessionLocal)
