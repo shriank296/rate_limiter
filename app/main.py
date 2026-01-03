@@ -1,4 +1,4 @@
-from fastapi import Depends, FastAPI
+from fastapi import Depends, FastAPI, status
 from sqlalchemy.orm import Session
 
 from app.db.models import User
@@ -13,7 +13,7 @@ def home():
     return {"hello": "world"}
 
 
-@app.post("/users")
+@app.post("/users", status_code=status.HTTP_201_CREATED)
 def create_user(
     user_in: UserCreate, session: Session = Depends(get_session)
 ) -> UserRead:

@@ -12,11 +12,13 @@ This file defines:
 import factory
 import pytest
 from factory.alchemy import SQLAlchemyModelFactory
+from fastapi.testclient import TestClient
 from sqlalchemy import StaticPool, create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.db.models import Base, User
-from app.db.session import session_scope
+from app.db.session import get_session, session_scope
+from app.main import app
 
 # ---------------------------------------------------------------------------
 # Test database configuration
@@ -121,3 +123,18 @@ class UserFactory(SQLAlchemyModelFactory):
         session.commit()
 
         return obj
+
+
+@pytest.fixture(scope="function")
+def test_client(get_session_test) -> TestClient:
+    client = TestClient(app)
+
+    def override_get_session():
+        # get_session_test HERE is the actual Session object
+        yield get_session_test
+
+    client.app.dependency_overrides[get_session] = override_get_session
+
+    yield client
+
+    client.app.dependency_overrides.clear()
