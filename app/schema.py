@@ -16,3 +16,8 @@ class UserRead(BaseModel):
     username: str
 
     model_config = {"from_attributes": True}
+
+
+class FormData(BaseModel):
+    username: str
+    password: str

@@ -9,6 +9,8 @@ This file defines:
 - Factory Boy integration
 """
 
+from typing import Generator
+
 import factory
 import pytest
 from factory.alchemy import SQLAlchemyModelFactory
@@ -126,7 +128,7 @@ class UserFactory(SQLAlchemyModelFactory):
 
 
 @pytest.fixture(scope="function")
-def test_client(get_session_test) -> TestClient:
+def test_client(get_session_test) -> Generator[TestClient, None, None]:
     client = TestClient(app)
 
     def override_get_session():
