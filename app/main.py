@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from app.db.models import User
 from app.db.session import get_session
 from app.schema import FormData, UserCreate, UserRead
-from app.security import authenticate_user, get_token_service
+from app.security import authenticate_user, get_current_user, get_token_service
 
 app = FastAPI()
 
@@ -34,7 +34,9 @@ def get_token(
 
 @app.post("/users", status_code=status.HTTP_201_CREATED)
 def create_user(
-    user_in: UserCreate, session: Session = Depends(get_session)
+    user_in: UserCreate,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
 ) -> UserRead:
     user = User(**user_in.model_dump())
     session.add(user)

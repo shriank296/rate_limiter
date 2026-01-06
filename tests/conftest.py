@@ -21,6 +21,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from app.db.models import Base, User
 from app.db.session import get_session, session_scope
 from app.main import app
+from app.security import get_current_user
 
 # ---------------------------------------------------------------------------
 # Test database configuration
@@ -100,7 +101,7 @@ class UserFactory(SQLAlchemyModelFactory):
     """
 
     name = factory.Faker("name")
-    username = factory.Sequence(lambda n: f"user{n}")
+    username = factory.Faker("user_name")
 
     class Meta:
         model = User
@@ -140,3 +141,34 @@ def test_client(get_session_test) -> Generator[TestClient, None, None]:
     yield client
 
     client.app.dependency_overrides.clear()
+
+
+@pytest.fixture
+def test_user(create_db, get_session_test) -> User:
+    user = UserFactory.create(password="test_password")
+    return user
+
+
+@pytest.fixture
+def auth_headers(test_user, test_client):
+    response = test_client.post(
+        "/generate_token",
+        data={"username": test_user.username, "password": "test_password"},
+    )
+    access_token = response.json()
+    return {"Authorization": f"Bearer {access_token}"}
+
+
+@pytest.fixture(scope="function")
+def authenticated_test_client(
+    get_session_test, test_user, test_client
+) -> Generator[TestClient, None, None]:
+    def override_get_current_user():
+        # test_user here overrides the get_cuurent_user so auth part is never called
+        yield test_user
+
+    test_client.app.dependency_overrides[get_current_user] = override_get_current_user
+
+    yield test_client
+
+    test_client.app.dependency_overrides.clear()
