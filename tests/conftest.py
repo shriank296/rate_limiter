@@ -12,6 +12,7 @@ This file defines:
 from typing import Generator
 
 import factory
+import fakeredis
 import pytest
 from factory.alchemy import SQLAlchemyModelFactory
 from fastapi.testclient import TestClient
@@ -21,6 +22,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from app.db.models import Base, User
 from app.db.session import get_session, session_scope
 from app.main import app
+from app.rate_limiting import get_redis_client
 from app.security import get_current_user
 
 # ---------------------------------------------------------------------------
@@ -159,15 +161,24 @@ def auth_headers(test_user, test_client):
     return {"Authorization": f"Bearer {access_token}"}
 
 
+@pytest.fixture
+def fake_redis():
+    return fakeredis.FakeRedis(decode_responses=True)
+
+
 @pytest.fixture(scope="function")
 def authenticated_test_client(
-    get_session_test, test_user, test_client
+    get_session_test, test_user, test_client, fake_redis
 ) -> Generator[TestClient, None, None]:
     def override_get_current_user():
         # test_user here overrides the get_cuurent_user so auth part is never called
         yield test_user
 
+    def override_get_redis_client():
+        yield fake_redis
+
     test_client.app.dependency_overrides[get_current_user] = override_get_current_user
+    test_client.app.dependency_overrides[get_redis_client] = override_get_redis_client
 
     yield test_client
 

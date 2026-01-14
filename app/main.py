@@ -1,10 +1,15 @@
 from typing import Annotated
 
-from fastapi import Depends, FastAPI, Form, HTTPException, status
+from fastapi import Depends, FastAPI, Form, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
 from app.db.models import User
 from app.db.session import get_session
+from app.rate_limiting import (
+    check_rate_limit,
+    rate_limit_guard,
+    rate_limit_guard_using_redis,
+)
 from app.schema import FormData, UserCreate, UserRead
 from app.security import authenticate_user, get_current_user, get_token_service
 
@@ -34,9 +39,11 @@ def get_token(
 
 @app.post("/users", status_code=status.HTTP_201_CREATED)
 def create_user(
+    request: Request,
     user_in: UserCreate,
     session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user),
+    _: None = Depends(rate_limit_guard_using_redis),
+    # _: None = Depends(rate_limit_guard),
 ) -> UserRead:
     user = User(**user_in.model_dump())
     session.add(user)

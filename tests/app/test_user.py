@@ -48,3 +48,27 @@ def test_user_create_using_authenticated_client(authenticated_test_client, creat
     data = response.json()
     assert data["name"] == "Shreya"
     assert data["username"] == "shrishreya"
+
+
+def test_user_create_too_many_requests(authenticated_test_client, create_db):
+    # First request should succeed
+    response1 = authenticated_test_client.post(
+        "/users",
+        json={
+            "name": "test user 1",
+            "username": "test_user_1",
+            "password": "secret123",
+        },
+    )
+    assert response1.status_code == 201
+
+    # Second request should exceed rate limit
+    response2 = authenticated_test_client.post(
+        "/users",
+        json={
+            "name": "test user 2",
+            "username": "test_user_2",
+            "password": "secret123",
+        },
+    )
+    assert response2.status_code == 429

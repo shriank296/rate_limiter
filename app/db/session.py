@@ -3,6 +3,7 @@ from collections.abc import Generator
 from typing import Any
 
 from sqlalchemy import create_engine
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.config import settings
@@ -79,7 +80,7 @@ def session_scope(session_factory: sessionmaker) -> Generator[Session, Any]:
         with session.begin():
             # Yield the session to the caller (e.g., FastAPI endpoint)
             yield session
-    except Exception:
+    except SQLAlchemyError:
         # Any exception (DB or user logic) logged here.
         # The transaction was already rolled back by session.begin().
         logger.exception("A database exception occured")
